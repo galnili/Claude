@@ -157,8 +157,8 @@ class Builder:
             for j in range(ring):
                 f = self.bm.faces.new((vs[i][j], vs[(i+1) % seg][j], vs[(i+1) % seg][(j+1) % ring], vs[i][(j+1) % ring]))
                 f.material_index = self.idx[mat]; f.smooth = True
-    def tube(self, pts, r, mat, segs=8):  # sweep along polyline
-        prev = None
+    def tube(self, pts, r, mat, segs=8):  # sweep along polyline, capped at both ends
+        prev = None; first = None
         for k, p in enumerate(pts):
             p = Vector(p); d = (Vector(pts[min(k+1, len(pts)-1)]) - Vector(pts[max(k-1, 0)])).normalized()
             q = d.to_track_quat('Z', 'Y').to_matrix()
@@ -166,7 +166,10 @@ class Builder:
             if prev:
                 for i in range(segs):
                     f = self.bm.faces.new((prev[i], prev[(i+1) % segs], ring[(i+1) % segs], ring[i])); f.material_index = self.idx[mat]; f.smooth = True
+            else: first = ring
             prev = ring
+        for cap in (first, prev[::-1]):
+            f = self.bm.faces.new(cap); f.material_index = self.idx[mat]
     def poly(self, pts, mat, z=0., smooth=False):
         f = self.bm.faces.new([self.bm.verts.new((x, y, z)) for x, y in pts]); f.material_index = self.idx[mat]; f.smooth = smooth; return f
     def mesh(self, name):
@@ -339,6 +342,24 @@ gaps((720, 250), (720, 850), [(290, 340), (600, 680)], 1.0)
 wall((720, 1325), (690, 1325))
 wall((78, 1588), (330, 1588), 1.0); wall((440, 1588), (690, 1588), 1.0)
 
+def door(p0, p1):
+    """Gilded double door with transom filling an exterior opening."""
+    (ax, ay), (bx, by_) = W(*p0), W(*p1)
+    L = math.hypot(bx-ax, by_-ay); d = Vector(((bx-ax)/L, (by_-ay)/L, 0)); rz = math.atan2(d.y, d.x)
+    c = Vector(((ax+bx)/2, (ay+by_)/2, 0)); hd = 3.1
+    A.box(c+Vector((0, 0, (hd+H)/2)), (L, .32, H-hd), 'paint', rz)
+    A.box(c+Vector((0, 0, hd/2)), (L, .08, hd), 'paint', rz)
+    for side in (1, -1):
+        n = Vector((-d.y, d.x, 0))*side
+        A.box(c+n*.06+Vector((0, 0, hd+.06)), (L+.3, .06, .14), 'stone', rz)
+        for k in (-1, 1):
+            for z0, z1 in ((.25, 1.25), (1.45, hd-.25)):
+                cc = c+d*(k*L/4)+n*.045
+                A.box(cc+Vector((0, 0, (z0+z1)/2)), (L/2-.3, .01, z1-z0), 'gold', rz)
+                A.box(cc+n*.004+Vector((0, 0, (z0+z1)/2)), (L/2-.34, .01, z1-z0-.04), 'paint', rz)
+        A.box(c+n*.06+Vector((0, 0, 1.1)), (.04, .03, .45), 'gold', rz)
+for opening in (((100, 1830), (170, 1830)), ((595, 1830), (665, 1830)), ((720, 1000), (720, 1100))): door(*opening)
+
 # columns
 def column(px, py):
     x, y = W(px, py)
@@ -433,7 +454,7 @@ def beams(px0, py0, px1, py1, step=3.3):
     for i in range(1, nx_):
         x = xa+(xb-xa)*i/nx_; C.box((x, (ya+yb)/2, H-.16), (.34, yb-ya, .32), 'ceil'); C.box((x, (ya+yb)/2, H-.325), (.06, yb-ya, .01), 'gold')
     for j in range(1, ny_):
-        y = ya+(yb-ya)*j/ny_; C.box(((xa+xb)/2, y, H-.16), (xb-xa, .34, .32), 'ceil'); C.box(((xa+xb)/2, y, H-.325), (xb-xa, .06, .01), 'gold')
+        y = ya+(yb-ya)*j/ny_; C.box(((xa+xb)/2, y, H-.15), (xb-xa, .34, .30), 'ceil'); C.box(((xa+xb)/2, y, H-.305), (xb-xa, .06, .01), 'gold')
     for i in range(nx_):
         for j in range(ny_):
             x = xa+(xb-xa)*(i+.5)/nx_; y = ya+(yb-ya)*(j+.5)/ny_
